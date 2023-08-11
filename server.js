@@ -3,7 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const db = require("./app/config/db.config");
 const bcrypt = require('bcryptjs');
-
+const jwt = require('jsonwebtoken');
+const checkIfUserExists = require('./app/middleware/checkIfUserExists.js');
 const app = express()
 
 var corsOption = {
@@ -40,7 +41,7 @@ db.connect(err=>{
 
 // create user
 
-app.post("/api/signup",async(req,res)=>{
+app.post("/api/signup",checkIfUserExists, async(req,res)=>{
     let userName = req.query.user_name
     let userEmail = req.query.user_email
     let userPassword = bcrypt.hashSync(req.query.user_pass,10)
@@ -65,19 +66,20 @@ app.post("/api/signin",(req,res)=>{
     try {
         db.query(`SELECT * FROM users WHERE userName = '${req.query.user_name}'`,(err,result)=>{
             if(err){
-                res.status(404).send({message:'No such user found'})
+                res.status(404).send({message:'Something went wrong'})
             }else{
                 const hashedPass = result[0].userPassword
                 const passwordMatches = bcrypt.compareSync(user_pass, hashedPass);
                 if (passwordMatches) {
-                    // generate jwt token here and send in response
-                    res.status(200).send({message:"password matches"});
+                    // if password matches then send a jwt token
+                    const token = jwt.sign(req.query,process.env.JWT_SECRET,{expiresIn:'7d'})
+                    res.status(200).send({user:req.query,acessToken:token,message:'user signed in successfully'});
                 } else {
                     res.status(401).send({ message: 'Incorrect password' });
                 }
             }
         })
     } catch (error) {
-        
+        res.status(500).send({message:'server error'})
     }
 })
